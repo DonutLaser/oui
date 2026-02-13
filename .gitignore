@@ -1,0 +1,5 @@
+*.bat
+*.exe
+*.pdb
+*.rdi
+main.odin

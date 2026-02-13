@@ -1,0 +1,9 @@
+{
+  "character_width": 160,
+  "tabs": true,
+  "tabs_width": 4,
+  "sort_imports": true,
+  "newline_limit": 1,
+  "indent_cases": true,
+  "space_single_line_blocks": true
+}
