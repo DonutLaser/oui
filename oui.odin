@@ -172,7 +172,8 @@ render :: proc(gui: ^GUI) {
 	if gui.root == nil { return }
 
 	grow_children(gui.root)
-	position_elements(gui.root, 0, 0)
+	position_elements_along_primary_axis(gui.root, 0, 0)
+	position_elements_along_secondary_axis(gui.root, 0, 0)
 
 	render_elements(gui.root)
 
@@ -276,7 +277,7 @@ grow_children :: proc(node: ^GUI_Element) {
 }
 
 @(private = "file")
-position_elements :: proc(node: ^GUI_Element, relative_x: f32, relative_y: f32) {
+position_elements_along_primary_axis :: proc(node: ^GUI_Element, relative_x: f32, relative_y: f32) {
 	if node.parent != nil && !node.data.pos.absolute {
 		node.data.pos.x = relative_x + node.parent.data.pos.x + node.data.pos.x + node.parent.data.padding.left
 		node.data.pos.y = relative_y + node.parent.data.pos.y + node.data.pos.y + node.parent.data.padding.top
@@ -314,7 +315,7 @@ position_elements :: proc(node: ^GUI_Element, relative_x: f32, relative_y: f32) 
 
 				full_width += node.data.gap * f32(relative_children_count - 1)
 
-				cursor = (node.data.pos.x + node.data.width.value) - full_width
+				cursor = (node.data.pos.x + node.data.width.value - node.data.padding.right - node.data.padding.left) - full_width
 		}
 	} else if node.data.dir == .VERTICAL {
 		#partial switch node.data.children_valign {
@@ -347,17 +348,65 @@ position_elements :: proc(node: ^GUI_Element, relative_x: f32, relative_y: f32) 
 
 				full_height += node.data.gap * f32(relative_children_count - 1)
 
-				cursor = (node.data.pos.y + node.data.height.value) - full_height
+				cursor = (node.data.pos.y + node.data.height.value - node.data.padding.bottom - node.data.padding.top) - full_height
 		}
 	}
 
 	for child in node.children {
 		if node.data.dir == .HORIZONTAL {
-			position_elements(child, cursor, 0)
+			position_elements_along_primary_axis(child, cursor, 0)
 			cursor += child.data.width.value + node.data.gap
 		} else if node.data.dir == .VERTICAL {
-			position_elements(child, 0, cursor)
+			position_elements_along_primary_axis(child, 0, cursor)
 			cursor += child.data.height.value + node.data.gap
+		}
+	}
+}
+
+@(private = "file")
+position_elements_along_secondary_axis :: proc(node: ^GUI_Element, relative_x: f32, relative_y: f32) {
+	if !node.data.pos.absolute {
+		if !approx_equal(relative_x, 0.0) { node.data.pos.x = relative_x }
+		if !approx_equal(relative_y, 0.0) { node.data.pos.y = relative_y }
+	}
+
+	if node.data.dir == .HORIZONTAL {
+		#partial switch node.data.children_valign {
+			case .START:
+				for child in node.children {
+					position_elements_along_secondary_axis(child, 0.0, 0.0)
+				}
+			case .CENTER:
+				center := (node.data.pos.y + node.data.height.value) / 2
+				for child in node.children {
+					if child.data.pos.absolute { continue }
+					position_elements_along_secondary_axis(child, 0.0, (center - child.data.height.value / 2))
+				}
+			case .END:
+				end := node.data.pos.y + node.data.height.value - node.data.padding.bottom
+				for child in node.children {
+					if child.data.pos.absolute { continue }
+					position_elements_along_secondary_axis(child, 0.0, end - child.data.height.value)
+				}
+		}
+	} else if node.data.dir == .VERTICAL {
+		#partial switch node.data.children_halign {
+			case .START:
+				for child in node.children {
+					position_elements_along_secondary_axis(child, 0.0, 0.0)
+				}
+			case .CENTER:
+				center := (node.data.pos.x + node.data.width.value) / 2
+				for child in node.children {
+					if child.data.pos.absolute { continue }
+					position_elements_along_secondary_axis(child, (center - child.data.width.value / 2), 0.0)
+				}
+			case .END:
+				end := node.data.pos.x + node.data.width.value - node.data.padding.right
+				for child in node.children {
+					if child.data.pos.absolute { continue }
+					position_elements_along_secondary_axis(child, end - child.data.width.value, 0.0)
+				}
 		}
 	}
 }
@@ -374,5 +423,10 @@ render_elements :: proc(node: ^GUI_Element) {
 	for child in node.children {
 		render_elements(child)
 	}
+}
+
+@(private = "file")
+approx_equal :: proc(a: f32, b: f32) -> bool {
+	return abs(a - b) < 0.00001
 }
 
