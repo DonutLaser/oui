@@ -9,17 +9,24 @@ Render_Command :: union {
 }
 
 Rect_Command :: struct {
-	rect:  rl.Rectangle,
-	color: rl.Color,
+	x, y, w, h:   f32,
+	color:        rl.Color,
+	border_size:  f32,
+	border_color: rl.Color,
 }
 
 render_queue: [MAX_RENDER_COMMANDS]Render_Command
 render_queue_size: u16
 
-draw_rect :: proc(x, y, w, h: f32, color: rl.Color) {
+draw_rect :: proc(x, y, w, h: f32, color: rl.Color, border_size: f32, border_color: rl.Color) {
 	render_queue[render_queue_size] = Rect_Command {
-		rect  = {x, y, w, h},
-		color = color,
+		x            = x,
+		y            = y,
+		w            = w,
+		h            = h,
+		color        = color,
+		border_size  = border_size,
+		border_color = border_color,
 	}
 
 	render_queue_size += 1
@@ -34,7 +41,12 @@ flush_render_queue :: proc() {
 			switch _ in render_queue[i] {
 				case Rect_Command:
 					command := render_queue[i].(Rect_Command)
-					rl.DrawRectangleRec(command.rect, command.color)
+					rect := rl.Rectangle{command.x, command.y, command.w, command.h}
+					rl.DrawRectangleRec(rect, command.color)
+
+					if command.border_size > 0 {
+						rl.DrawRectangleLinesEx(rect, command.border_size, command.border_color)
+					}
 			}
 		}
 	}

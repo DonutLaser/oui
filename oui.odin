@@ -48,12 +48,14 @@ GUI_Element_Data :: struct {
 	pos:            Position,
 	width:          Size_Value,
 	height:         Size_Value,
+	padding:        Padding,
 	layout_dir:     Direction,
 	content_halign: Alignment,
 	content_valign: Alignment,
 	content_gap:    f32,
-	padding:        Padding,
 	bg_color:       rl.Color,
+	border_size:    f32,
+	border_color:   rl.Color,
 }
 
 GUI :: struct {
@@ -365,7 +367,7 @@ render_elements :: proc(node: ^GUI_Element) {
 	w := node.data.width.value
 	h := node.data.height.value
 
-	draw_rect(x, y, w, h, node.data.bg_color)
+	draw_rect(x, y, w, h, node.data.bg_color, node.data.border_size, node.data.border_color)
 
 	for child in node.children {
 		render_elements(child)
