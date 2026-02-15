@@ -45,15 +45,15 @@ GUI_Element :: struct {
 }
 
 GUI_Element_Data :: struct {
-	pos:             Position,
-	width:           Size_Value,
-	height:          Size_Value,
-	dir:             Direction,
-	children_halign: Alignment,
-	children_valign: Alignment,
-	gap:             f32,
-	padding:         Padding,
-	bg_color:        rl.Color,
+	pos:            Position,
+	width:          Size_Value,
+	height:         Size_Value,
+	layout_dir:     Direction,
+	content_halign: Alignment,
+	content_valign: Alignment,
+	content_gap:    f32,
+	padding:        Padding,
+	bg_color:       rl.Color,
 }
 
 GUI :: struct {
@@ -64,18 +64,21 @@ GUI :: struct {
 	arena:       Arena_Allocator,
 }
 
-init :: proc(gui: ^GUI) {
+@(private = "file")
+gui: GUI
+
+init :: proc() {
 	arena_allocator_init(&gui.arena)
 
 	gui.root = nil
 	gui.next_parent = nil
 }
 
-destroy :: proc(gui: ^GUI) {
+destroy :: proc() {
 	arena_allocator_destroy(&gui.arena)
 }
 
-begin :: proc(gui: ^GUI, data: GUI_Element_Data) {
+begin :: proc(data: GUI_Element_Data) {
 	new_element := new(GUI_Element, allocator = gui.arena.allocator)
 	new_element.parent = gui.next_parent
 	new_element.children = make([dynamic]^GUI_Element, allocator = gui.arena.allocator)
@@ -90,16 +93,16 @@ begin :: proc(gui: ^GUI, data: GUI_Element_Data) {
 	gui.next_parent = new_element
 }
 
-end :: proc(gui: ^GUI) {
+end :: proc() {
 	element := gui.next_parent
 
-	if element.data.dir == .HORIZONTAL {
+	if element.data.layout_dir == .HORIZONTAL {
 		if element.data.width.type == .FIT {
 			element.data.width.value += element.data.padding.left + element.data.padding.right
 			for child in element.children {
 				element.data.width.value += child.data.width.value
 			}
-			element.data.width.value += f32((len(element.children) - 1)) * element.data.gap
+			element.data.width.value += f32((len(element.children) - 1)) * element.data.content_gap
 		}
 
 		if element.data.height.type == .FIT {
@@ -109,13 +112,13 @@ end :: proc(gui: ^GUI) {
 
 			element.data.height.value += element.data.padding.top + element.data.padding.bottom
 		}
-	} else if element.data.dir == .VERTICAL {
+	} else if element.data.layout_dir == .VERTICAL {
 		if element.data.height.type == .FIT {
 			element.data.height.value += element.data.padding.top + element.data.padding.bottom
 			for child in element.children {
 				element.data.height.value += child.data.height.value
 			}
-			element.data.height.value += f32((len(element.children) - 1)) * element.data.gap
+			element.data.height.value += f32((len(element.children) - 1)) * element.data.content_gap
 		}
 
 		if element.data.width.type == .FIT {
@@ -168,7 +171,7 @@ padding :: proc {
 	padding4,
 }
 
-render :: proc(gui: ^GUI) {
+render :: proc() {
 	if gui.root == nil { return }
 
 	grow_children(gui.root)
@@ -188,7 +191,7 @@ render :: proc(gui: ^GUI) {
 
 @(private = "file")
 grow_children :: proc(node: ^GUI_Element) {
-	if node.data.dir == .VERTICAL {
+	if node.data.layout_dir == .VERTICAL {
 		space_remaining_along_axis := node.data.height.value
 		grow_child_count := 0
 
@@ -209,7 +212,7 @@ grow_children :: proc(node: ^GUI_Element) {
 			}
 		}
 
-		space_remaining_along_axis -= node.data.gap * f32(relative_children_count - 1)
+		space_remaining_along_axis -= node.data.content_gap * f32(relative_children_count - 1)
 		space_remaining_along_axis -= node.data.padding.top
 		space_remaining_along_axis -= node.data.padding.bottom
 
@@ -228,7 +231,7 @@ grow_children :: proc(node: ^GUI_Element) {
 
 			child.data.width.value = space_remaining_across_axis
 		}
-	} else if node.data.dir == .HORIZONTAL {
+	} else if node.data.layout_dir == .HORIZONTAL {
 		space_remaining_along_axis := node.data.width.value
 		grow_child_count := 0
 
@@ -249,7 +252,7 @@ grow_children :: proc(node: ^GUI_Element) {
 			}
 		}
 
-		space_remaining_along_axis -= node.data.gap * f32(relative_children_count - 1)
+		space_remaining_along_axis -= node.data.content_gap * f32(relative_children_count - 1)
 		space_remaining_along_axis -= node.data.padding.left
 		space_remaining_along_axis -= node.data.padding.right
 
@@ -282,14 +285,14 @@ position_elements :: proc(node: ^GUI_Element, local_x: f32, local_y: f32) {
 		node.data.pos.y = node.parent.data.pos.y + local_y + node.parent.data.padding.top
 	}
 
-	if node.data.dir == .HORIZONTAL {
+	if node.data.layout_dir == .HORIZONTAL {
 		cursor_x: f32 = 0.0
 		cursor_y: f32 = 0.0
 
 		full_width: f32 = 0.0
 
 		// calculate cursor along axis
-		if node.data.children_halign != .START {
+		if node.data.content_halign != .START {
 			relative_children_count := 0
 			for child in node.children {
 				if child.data.pos.absolute { continue }
@@ -298,17 +301,17 @@ position_elements :: proc(node: ^GUI_Element, local_x: f32, local_y: f32) {
 				relative_children_count += 1
 			}
 
-			full_width += node.data.padding.left + node.data.padding.right + (node.data.gap * f32(relative_children_count - 1))
+			full_width += node.data.padding.left + node.data.padding.right + (node.data.content_gap * f32(relative_children_count - 1))
 
 			cursor_x = node.data.width.value - full_width
 		}
 
-		if node.data.children_halign == .CENTER { cursor_x /= 2 }
+		if node.data.content_halign == .CENTER { cursor_x /= 2 }
 
 		full_height := node.data.padding.top + node.data.padding.bottom + node.data.height.value
 		for child in node.children {
 			// calculate cursor across axis
-			#partial switch node.data.children_valign {
+			#partial switch node.data.content_valign {
 				case .CENTER:
 					cursor_y = (full_height - child.data.height.value) / 2
 				case .END:
@@ -316,15 +319,15 @@ position_elements :: proc(node: ^GUI_Element, local_x: f32, local_y: f32) {
 			}
 
 			position_elements(child, cursor_x + child.data.pos.x, cursor_y + child.data.pos.y)
-			cursor_x += child.data.width.value + node.data.gap
+			cursor_x += child.data.width.value + node.data.content_gap
 		}
-	} else if node.data.dir == .VERTICAL {
+	} else if node.data.layout_dir == .VERTICAL {
 		cursor_y: f32 = 0.0
 		cursor_x: f32 = 0.0
 		full_height: f32 = 0.0
 
 		// calculate cursor along axis
-		if node.data.children_valign != .START {
+		if node.data.content_valign != .START {
 			relative_children_count := 0
 			for child in node.children {
 				if child.data.pos.absolute { continue }
@@ -333,16 +336,16 @@ position_elements :: proc(node: ^GUI_Element, local_x: f32, local_y: f32) {
 				relative_children_count += 1
 			}
 
-			full_height += node.data.padding.top + node.data.padding.bottom + (node.data.gap * f32(relative_children_count - 1))
+			full_height += node.data.padding.top + node.data.padding.bottom + (node.data.content_gap * f32(relative_children_count - 1))
 			cursor_y = node.data.height.value - full_height
 		}
 
-		if node.data.children_valign == .CENTER { cursor_y /= 2 }
+		if node.data.content_valign == .CENTER { cursor_y /= 2 }
 
 		full_width := node.data.padding.left + node.data.padding.right + node.data.width.value
 		for child in node.children {
 			// calculate cursor axis
-			#partial switch node.data.children_halign {
+			#partial switch node.data.content_halign {
 				case .CENTER:
 					cursor_x = (full_width - child.data.width.value) / 2
 				case .END:
@@ -350,7 +353,7 @@ position_elements :: proc(node: ^GUI_Element, local_x: f32, local_y: f32) {
 			}
 
 			position_elements(child, cursor_x + child.data.pos.x, cursor_y + child.data.pos.y)
-			cursor_y += child.data.height.value + node.data.gap
+			cursor_y += child.data.height.value + node.data.content_gap
 		}
 	}
 }
