@@ -369,8 +369,3 @@ render_elements :: proc(node: ^GUI_Element) {
 	}
 }
 
-@(private = "file")
-approx_equal :: proc(a: f32, b: f32) -> bool {
-	return abs(a - b) < 0.00001
-}
-
