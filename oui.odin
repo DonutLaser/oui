@@ -1,7 +1,25 @@
 package oui
 
-import "core:fmt"
-import rl "vendor:raylib"
+import "core:mem"
+import vmem "core:mem/virtual"
+
+MAX_RENDER_COMMANDS :: 16_384
+
+Render_Command :: union {
+	Rect_Command,
+}
+
+Color :: distinct [4]u8
+Rect :: struct {
+	x, y, w, h: f32,
+}
+
+Rect_Command :: struct {
+	rect:         Rect,
+	color:        Color,
+	border_size:  f32,
+	border_color: Color,
+}
 
 Direction :: enum {
 	HORIZONTAL,
@@ -53,37 +71,42 @@ GUI_Element_Data :: struct {
 	content_halign: Alignment,
 	content_valign: Alignment,
 	content_gap:    f32,
-	bg_color:       rl.Color,
+	bg_color:       Color,
 	border_size:    f32,
-	border_color:   rl.Color,
+	border_color:   Color,
 }
 
+@(private = "file")
 GUI :: struct {
-	root:        ^GUI_Element,
-	next_parent: ^GUI_Element,
-
-	// Private data
-	arena:       Arena_Allocator,
+	root:            ^GUI_Element,
+	next_parent:     ^GUI_Element,
+	arena:           vmem.Arena,
+	arena_allocator: mem.Allocator,
 }
 
 @(private = "file")
 gui: GUI
+@(private = "file")
+render_queue: [MAX_RENDER_COMMANDS]Render_Command
+@(private = "file")
+render_queue_size: u16
 
-init :: proc() {
-	arena_allocator_init(&gui.arena)
-
+init :: proc(allocator := context.allocator) {
 	gui.root = nil
 	gui.next_parent = nil
+
+	_ = vmem.arena_init_growing(&gui.arena)
+	gui.arena_allocator = vmem.arena_allocator(&gui.arena)
 }
 
 destroy :: proc() {
-	arena_allocator_destroy(&gui.arena)
+	vmem.arena_destroy(&gui.arena)
 }
 
 begin :: proc(data: GUI_Element_Data) {
-	new_element := new(GUI_Element, allocator = gui.arena.allocator)
+	new_element := new(GUI_Element, allocator = gui.arena_allocator)
 	new_element.parent = gui.next_parent
-	new_element.children = make([dynamic]^GUI_Element, allocator = gui.arena.allocator)
+	new_element.children = make([dynamic]^GUI_Element, allocator = gui.arena_allocator)
 	new_element.data = data
 
 	if gui.root == nil {
@@ -173,22 +196,21 @@ padding :: proc {
 	padding4,
 }
 
-render :: proc() {
-	if gui.root == nil { return }
+commit :: proc() -> []Render_Command {
+	if gui.root == nil { return []Render_Command{} }
 
 	grow_children(gui.root)
 	position_elements(gui.root, 0, 0)
 
 	render_elements(gui.root)
 
-	// Actually draw things to screen
-	flush_render_queue()
-
 	// Since we are essentially in immediate mode, we reset the element tree and will recalculate everything each frame.
 	// This might be a problem with bigger trees, but we'll fix that when we encounter the problem.
-	arena_allocator_free_all(&gui.arena)
+	vmem.arena_free_all(&gui.arena)
 	gui.root = nil
 	gui.next_parent = nil
+
+	return render_queue[0:render_queue_size]
 }
 
 @(private = "file")
@@ -367,10 +389,22 @@ render_elements :: proc(node: ^GUI_Element) {
 	w := node.data.width.value
 	h := node.data.height.value
 
-	draw_rect(x, y, w, h, node.data.bg_color, node.data.border_size, node.data.border_color)
+	push_rect_command({x, y, w, h}, node.data.bg_color, node.data.border_size, node.data.border_color)
 
 	for child in node.children {
 		render_elements(child)
 	}
+}
+
+@(private = "file")
+push_rect_command :: proc(rect: Rect, color: Color, border_size: f32, border_color: Color) {
+	render_queue[render_queue_size] = Rect_Command {
+		rect         = rect,
+		color        = color,
+		border_size  = border_size,
+		border_color = border_color,
+	}
+
+	render_queue_size += 1
 }
 
