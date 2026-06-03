@@ -62,9 +62,6 @@ Position :: struct {
 	x, y: f32,
 }
 
-// @(private = "file")
-// layout: Layout
-
 new_layout :: proc(allocator: mem.Allocator) -> (result: Layout) {
 	result.allocator = allocator
 
@@ -84,22 +81,6 @@ begin :: proc(layout: ^Layout, width, height: f32) {
 end :: proc(layout: ^Layout) {
 	stack_pop(&layout.container_stack)
 }
-
-// begin :: proc(width, height: f32, allocator: mem.Allocator) {
-// 	layout.allocator = allocator
-
-// 	container := Container {
-// 		direction     = .VERTICAL,
-// 		content_sizes = make([dynamic]f32, allocator = layout.allocator),
-// 		content_area  = {0, 0, width, height},
-// 	}
-// 	append(&container.content_sizes, height)
-// 	stack_push(&layout.container_stack, container)
-// }
-
-// end :: proc() {
-// 	stack_pop(&layout.container_stack)
-// }
 
 begin_container :: proc(layout: ^Layout, options: Container_Options) {
 	rect: Rect
