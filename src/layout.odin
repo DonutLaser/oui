@@ -62,12 +62,16 @@ Position :: struct {
 	x, y: f32,
 }
 
-@(private = "file")
-layout: Layout
+// @(private = "file")
+// layout: Layout
 
-begin :: proc(width, height: f32, allocator: mem.Allocator) {
-	layout.allocator = allocator
+new_layout :: proc(allocator: mem.Allocator) -> (result: Layout) {
+	result.allocator = allocator
 
+	return result
+}
+
+begin :: proc(layout: ^Layout, width, height: f32) {
 	container := Container {
 		direction     = .VERTICAL,
 		content_sizes = make([dynamic]f32, allocator = layout.allocator),
@@ -77,16 +81,32 @@ begin :: proc(width, height: f32, allocator: mem.Allocator) {
 	stack_push(&layout.container_stack, container)
 }
 
-end :: proc() {
+end :: proc(layout: ^Layout) {
 	stack_pop(&layout.container_stack)
 }
 
-begin_container :: proc(options: Container_Options) {
+// begin :: proc(width, height: f32, allocator: mem.Allocator) {
+// 	layout.allocator = allocator
+
+// 	container := Container {
+// 		direction     = .VERTICAL,
+// 		content_sizes = make([dynamic]f32, allocator = layout.allocator),
+// 		content_area  = {0, 0, width, height},
+// 	}
+// 	append(&container.content_sizes, height)
+// 	stack_push(&layout.container_stack, container)
+// }
+
+// end :: proc() {
+// 	stack_pop(&layout.container_stack)
+// }
+
+begin_container :: proc(layout: ^Layout, options: Container_Options) {
 	rect: Rect
 	if options.global {
 		rect = align_container(stack_root(&layout.container_stack)^, options.width, options.height, options.alignment)
 	} else {
-		rect = next()
+		rect = next(layout)
 	}
 
 	container := Container {
@@ -128,15 +148,15 @@ begin_container :: proc(options: Container_Options) {
 	stack_push(&layout.container_stack, container)
 }
 
-end_container :: proc() {
+end_container :: proc(layout: ^Layout) {
 	stack_pop(&layout.container_stack)
 }
 
-spacing :: proc() {
-	_ = next()
+spacing :: proc(layout: ^Layout) {
+	_ = next(layout)
 }
 
-next :: proc() -> (result: Rect) {
+next :: proc(layout: ^Layout) -> (result: Rect) {
 	parent := stack_peek(&layout.container_stack)
 
 	result.x = parent.content_area.x + parent.padding + parent.cursor.x
@@ -168,7 +188,7 @@ next :: proc() -> (result: Rect) {
 	return result
 }
 
-get_container_bounds :: proc() -> Rect {
+get_container_bounds :: proc(layout: ^Layout) -> Rect {
 	parent := stack_peek(&layout.container_stack)
 	return parent.content_area
 }
